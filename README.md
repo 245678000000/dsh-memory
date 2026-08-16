@@ -1,5 +1,7 @@
 # dsh-memory
 
+English | [中文](README.zh.md)
+
 Long-term memory that knows when to change its mind.
 
 **Remember what matters.  
