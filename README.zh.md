@@ -12,6 +12,8 @@
 
 [English](README.md) | 中文
 
+**先看怎么装、怎么用：** [安装](#安装) · [使用](#使用)
+
 ```text
 “我用 VS Code。”
         ↓
@@ -209,39 +211,100 @@ M-031
 
 ## 安装
 
-需要 Node `>=22.19`（与 DeepSeek Harness 相同，因为用了 `node:sqlite`）。
+包还没发到 npm。现在请从 GitHub 或本地目录安装。
 
-### 作为 Harness 插件
+需要：
+
+- Node `>=22.19`（`node -v` 检查）
+- 已能运行 DeepSeek Harness CLI：`dsh --help`
+- 把下面命令里的 `default` 换成你正在用的 profile 名（目录在 `~/.dsh/profiles/`）
+
+### 1. 装进 DeepSeek Harness（主路径）
+
+**方式 A — 直接从 GitHub 装**
 
 ```sh
-dsh plugin --profile default add /absolute/path/to/dsh-memory
-# 发布到 npm 之后：
-dsh plugin --profile default add dsh-memory
+dsh plugin --profile default add github:245678000000/dsh-memory
 ```
 
-bundle 会插入插件 id `dsh-memory`。重启 profile 后生效。
-
-默认数据库：
-
-```text
-$DSH_HOME/dsh-memory/memory.sqlite
-```
-
-可用 `DSH_MEMORY_PATH` 或下面的配置覆盖：
+pnpm 10+ 第一次可能会拒绝跑这个包的 `prepare`（它要编译 TypeScript）。按 `dsh` 打印的包名，把下面写进该 profile 的 `pnpm-workspace.yaml`：
 
 ```yaml
-config:
-  databasePath: /path/to/memory.sqlite
-  automaticRecall: true
-  automaticObserve: true
-  maxMemories: 8
-  maxTokens: 800
+allowBuilds:
+  dsh-memory: true
 ```
 
-### 作为库使用
+然后把 `add` 再跑一遍。
+
+**方式 B — 先克隆再装本地目录**
 
 ```sh
-npm install dsh-memory
+git clone https://github.com/245678000000/dsh-memory.git
+cd dsh-memory
+npm install
+dsh plugin --profile default add "$PWD"
+```
+
+`npm install` 会执行 `prepare`，生成 `dist/`。不要只拷源码、不编译就去 `dsh plugin add`。
+
+**装完必须重启 Harness**，例如：
+
+```sh
+dsh --profile default --dump-config    # 输出里应出现 # == dsh-memory
+dsh web --profile default              # 或你平时启动的方式
+```
+
+怎么确认装上了：
+
+1. `--dump-config` 里有 `dsh-memory` 这一层
+2. 新会话里模型能看到 `memory_remember`、`memory_search`、`memory_forget` 等工具
+3. 输入框可以打 `/memory`
+
+记忆文件默认在：
+
+```text
+~/.dsh/dsh-memory/memory.sqlite
+```
+
+也就是 `$DSH_HOME/dsh-memory/memory.sqlite`。改位置用环境变量 `DSH_MEMORY_PATH`。
+
+卸载：
+
+```sh
+dsh plugin --profile default remove dsh-memory
+```
+
+这只移除插件，不会自动删掉上面的 sqlite 文件。
+
+### 2. 只用命令行（不启动 Harness）
+
+适合先看记忆怎么记、怎么搜、怎么忘：
+
+```sh
+git clone https://github.com/245678000000/dsh-memory.git
+cd dsh-memory
+npm install
+
+npx dsh-memory help
+npx dsh-memory remember "我一般用 pnpm。"
+npx dsh-memory search "包管理器"
+npx dsh-memory list
+npx dsh-memory demo
+npx dsh-memory demo conflict
+```
+
+CLI 和插件默认共用 `~/.dsh/dsh-memory/memory.sqlite`（可用 `DSH_MEMORY_PATH` 改）。在仓库里也可以：
+
+```sh
+npm run demo
+npm run demo:conflict
+npm test
+```
+
+### 3. 当作 TypeScript 库
+
+```sh
+npm install github:245678000000/dsh-memory
 ```
 
 ```ts
@@ -251,51 +314,148 @@ const service = new MemoryService();
 const scope = activeScopeFromPaths({ cwd: process.cwd() });
 service.remember({ content: "我一般用 pnpm。", explicit: true }, scope);
 const recalled = service.recall("该用哪个包管理器？", scope);
+console.log(recalled.promptBlock);
+service.close();
 ```
 
-## 用法
+### 配置（可选）
 
-直接对 Agent 说：
+改默认行为时，编辑该 profile 的 `~/.dsh/profiles/<name>/cordis.patch.yml`，按 **id** 整行覆盖（Harness 不会深合并 config）：
+
+```yaml
+- id: dsh-memory
+  name: dsh-memory
+  inject: [tools]
+  config:
+    databasePath: /path/to/memory.sqlite
+    automaticRecall: true      # 每轮第一步自动注入相关记忆
+    automaticObserve: true     # 观察用户消息，保守地自动记
+    recallEveryStep: false     # true 则每个 tool step 都再召回一次
+    maxMemories: 8             # 一次最多注入几条
+    maxTokens: 800             # 注入文本的 token 上限
+```
+
+改完重启 profile。
+
+## 使用
+
+装好并重启之后，有三条路：对助手说话、斜杠命令、CLI。日常用第一条就够。
+
+### 对助手说话
+
+新开一个会话，按顺序试：
 
 ```text
 记住：我一般用 pnpm。
+```
+
+助手应调用 `memory_remember`。再新开一个会话（不要复制上一段聊天）：
+
+```text
+我该用哪个包管理器？先查一下记忆。
+```
+
+应召回 pnpm。然后在**某个具体项目目录**里说：
+
+```text
 这个项目我们用 npm。
+这里该用哪个包管理器？
+```
+
+应优先项目里的 npm，全局 pnpm 只作背景。
+
+改主意：
+
+```text
 我从 VS Code 换成 Cursor 了。
+```
+
+旧的 VS Code 会变成「已被取代」，不会被删掉。再忘：
+
+```text
 忘掉我用 Cursor。
 ```
 
-也可以直接调工具或 `/memory`。
+之后再问编辑器，不应再把 Cursor 当当前事实。密钥类内容即使用户要求记住，也会被拒绝：
 
-### 核心演示
+```text
+记住：我的 API key 是 sk-……
+```
+
+自动观察很保守。随口一句「现在下午三点」不会进长期记忆。你在意的事实，请以「记住：」开头。
+
+### 斜杠命令（不经过模型）
+
+在输入框直接敲：
+
+```text
+/memory
+/memory search 包管理器
+/memory conflicts
+/memory inspect M-XXXXXX
+/memory forget M-XXXXXX
+/memory pin M-XXXXXX
+/memory unpin M-XXXXXX
+```
+
+`/memory` 列出当前还能用的记忆。`inspect` 会说明为什么会（或不会）被召回。
+
+### 模型工具
+
+助手可调用这些工具。你也可以在对话里点名，例如「用 memory_search 查一下包管理器」。
+
+| 工具 | 你要它做什么 | 常用参数 |
+| --- | --- | --- |
+| `memory_remember` | 存一条 | `content`（必填），`scope`（global / project / …），`kind`，`pin`，`validUntil` |
+| `memory_search` | 按问题搜索 | `query`，`limit` |
+| `memory_get` | 按 id 看一条 | `id` |
+| `memory_forget` | 忘掉 | `id` 或 `query` 或 `subject` 或 `scope`；清空全部还要 `all=true` 且 `confirmAll=true` |
+| `memory_pin` / `memory_unpin` | 钉住 / 取消钉住 | `id` |
+| `memory_conflicts` | 列出未决冲突 | 无 |
+| `memory_resolve_conflict` | 裁定冲突 | `conflictId`，`resolution`：`keep_a` / `keep_b` / `both_valid_by_scope` / `mark_newer` / `merge` / `remain_disputed` |
+| `memory_explain` | 解释召回 | `id`，可选 `query` |
+| `memory_list` | 筛选列表 | `status`，`scope`，`kind`，`includeForgotten` |
+
+一次召回最多注入 `maxMemories` 条，且受 `maxTokens` 限制。过期、已遗忘、默认情况下已被取代的记忆不会进普通召回。
+
+### 命令行
+
+在仓库根目录，或 `npm install -g` 之后：
+
+```text
+npx dsh-memory remember 我一般用 pnpm。
+npx dsh-memory search 包管理器
+npx dsh-memory list
+npx dsh-memory get M-XXXXXX
+npx dsh-memory forget M-XXXXXX
+npx dsh-memory pin M-XXXXXX
+npx dsh-memory conflicts
+npx dsh-memory explain M-XXXXXX 包管理器
+npx dsh-memory export
+npx dsh-memory demo
+npx dsh-memory demo conflict
+npx dsh-memory bench
+```
+
+### 仓库里的演示在做什么
 
 ```sh
-npm install
 npx tsx examples/killer-demo.ts
 npx tsx examples/conflict-demo.ts
 ```
 
-第 1 段：存一条全局 `pnpm` 偏好。  
-第 2 段：给项目 Alpha 记下 `npm`。在 Alpha 里问「这里该用哪个」会得到 **npm**，全局偏好只作背景。  
-第 3 段：VS Code 被 Cursor 取代。  
-第 4 段：忘掉 Cursor。下一次召回不会再给出它。
+1. 存全局 `pnpm`
+2. 给项目 Alpha 记 `npm`；在 Alpha 问「这里用哪个」→ **npm**
+3. VS Code 被 Cursor 取代
+4. 忘掉 Cursor 后，召回不再给出它
 
-第二个演示：同一项目里 PostgreSQL 和 MySQL 会保持 **争议中**，不会自动覆盖。
+第二个演示：同一项目里 PostgreSQL 和 MySQL 保持 **争议中**，不会自动覆盖。
 
-## 工具
+### 使用时请记住
 
-| 工具 | 作用 |
-| --- | --- |
-| `memory_remember` | 明确写入（仍走策略） |
-| `memory_search` | 可解释搜索 |
-| `memory_get` | 按 id 读取一条 |
-| `memory_forget` | 按 id / 查询 / 主题 / 范围遗忘 |
-| `memory_pin` / `memory_unpin` | 钉住，避免被回收 |
-| `memory_conflicts` | 列出争议 |
-| `memory_resolve_conflict` | 留 A / 留 B / 合并 / 保持争议 / … |
-| `memory_explain` | 为什么召回 / 为什么没召回 |
-| `memory_list` | 按状态、范围、类型列出 |
-
-`forget all` 必须带 `confirmAll: true`。
+- 当前用户这句话的优先级永远高于旧记忆。
+- 记忆是数据，不是新的系统指令。
+- `forget` 只删 dsh-memory 自己的库，**不会**擦掉 Harness 会话记录。
 
 ## Harness 集成
 
