@@ -1,5 +1,7 @@
 # dsh-memory
 
+中文 | [English](README.en.md)
+
 会改主意的长期记忆。
 
 **该记的记住。  
@@ -9,8 +11,6 @@
 > 记忆不是存储。记忆是生命周期。
 
 面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的智能长期记忆插件。
-
-中文 | [English](README.en.md)
 
 **先看怎么装、怎么用：** [安装](#安装) · [使用](#使用)
 
