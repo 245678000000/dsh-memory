@@ -12,7 +12,31 @@
 
 面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的智能长期记忆插件。
 
-**先看怎么装、怎么用：** [安装](#安装) · [使用](#使用)
+## 快速安装
+
+前提：Node `>=22.19`（`node -v`），已经能跑 `dsh --help`。把 `default` 换成你正在用的 profile（看 `~/.dsh/profiles/`）。
+
+```sh
+dsh plugin --profile default add github:245678000000/dsh-memory
+dsh web --profile default
+```
+
+装完**必须重启** `dsh web`。新开会话说：
+
+```text
+记住：我一般用 pnpm。
+```
+
+输入框也可以直接打 `/memory`。
+
+若 pnpm 10+ 第一次拒绝执行 `prepare`，把下面写进 `~/.dsh/profiles/default/pnpm-workspace.yaml`，再跑一遍 `add`：
+
+```yaml
+allowBuilds:
+  dsh-memory: true
+```
+
+更稳的本地装法、配置、卸载、纯 CLI，见下面的 [安装详解](#安装详解)。对话、命令、工具见 [使用](#使用)。
 
 ```text
 “我用 VS Code。”
@@ -209,7 +233,7 @@ M-031
 
 本地优先：默认存本机文件。除非你以后自己接，否则不会把记忆发到远程 embedding 或 LLM。
 
-## 安装
+## 安装详解
 
 包还没发到 npm。现在请从 GitHub 或本地目录安装。
 

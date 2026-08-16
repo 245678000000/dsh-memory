@@ -2,8 +2,6 @@
 
 [中文](README.md) | English
 
-**Install and use:** [Installation](#installation) · [Usage](#usage)
-
 Long-term memory that knows when to change its mind.
 
 **Remember what matters.  
@@ -13,6 +11,32 @@ Forget what no longer should remain.**
 > Memory is not storage. Memory is lifecycle.
 
 Intelligent Long-Term Memory for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
+
+## Quick install
+
+Need Node `>=22.19` (`node -v`) and a working `dsh --help`. Replace `default` with your profile (`~/.dsh/profiles/`).
+
+```sh
+dsh plugin --profile default add github:245678000000/dsh-memory
+dsh web --profile default
+```
+
+Restart `dsh web` after install. In a new session say:
+
+```text
+Remember: I generally use pnpm.
+```
+
+You can also type `/memory` in the input box.
+
+If pnpm 10+ refuses `prepare`, add this to `~/.dsh/profiles/default/pnpm-workspace.yaml` and run `add` again:
+
+```yaml
+allowBuilds:
+  dsh-memory: true
+```
+
+Local clone, config, uninstall, and CLI-only setup: [Installation details](#installation-details). Talking to the agent, slash commands, and tools: [Usage](#usage).
 
 ```text
 “I use VS Code.”
@@ -209,7 +233,7 @@ Prompt-injection-shaped text may be stored if the user insists, but it is escape
 
 Local-first: the default store is a file on disk. Nothing is sent to a remote embedding or LLM provider unless you add one later.
 
-## Installation
+## Installation details
 
 This package is **not on npm yet**. Install from GitHub or a local clone.
 
