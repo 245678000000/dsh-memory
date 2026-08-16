@@ -1,242 +1,242 @@
 # dsh-memory
 
-English | [中文](README.zh.md)
+会改主意的长期记忆。
 
-**Install and use:** [Installation](#installation) · [Usage](#usage)
+**该记的记住。  
+冲突的裁定。  
+不该留下的忘掉。**
 
-Long-term memory that knows when to change its mind.
+> 记忆不是存储。记忆是生命周期。
 
-**Remember what matters.  
-Resolve what conflicts.  
-Forget what no longer should remain.**
+面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的智能长期记忆插件。
 
-> Memory is not storage. Memory is lifecycle.
+中文 | [English](README.en.md)
 
-Intelligent Long-Term Memory for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
-
-```text
-“I use VS Code.”
-        ↓
-VS Code          ACTIVE
-        ↓
-“I switched to Cursor.”
-        ↓
-VS Code          SUPERSEDED
-Cursor           ACTIVE
-        ↓
-“Forget my editor preference.”
-        ↓
-Cursor           FORGOTTEN
-```
-
-## Why
-
-Ordinary agent memory is:
+**先看怎么装、怎么用：** [安装](#安装) · [使用](#使用)
 
 ```text
-store → retrieve
+“我用 VS Code。”
+        ↓
+VS Code          生效中
+        ↓
+“我换成 Cursor 了。”
+        ↓
+VS Code          已被取代
+Cursor           生效中
+        ↓
+“忘掉我的编辑器偏好。”
+        ↓
+Cursor           已遗忘
 ```
 
-That answers “what is similar to this prompt?” It does not answer:
+## 为什么需要它
 
-- What is worth remembering?
-- In which scope?
-- Does this contradict something we already believe?
-- Should the old fact be superseded, disputed, or left alone?
-- When should a fact fade, expire, or actually disappear?
-- Why was *this* memory injected and not the other one?
+常见的 Agent Memory 是：
 
-`dsh-memory` is a lifecycle engine. Retrieval is one step, not the product.
+```text
+存储 → 检索
+```
 
-## Ordinary memory vs dsh-memory
+它只回答「和这句话像的有哪些」。它不回答：
 
-| Ordinary Agent Memory | dsh-memory |
+- 什么值得记？
+- 记在哪个范围？
+- 和已有记忆冲突吗？
+- 新信息该覆盖旧信息，还是两条都留？
+- 一条记忆何时该降权、过期、真正删除？
+- 为什么这次召回了这条，而不是另一条？
+
+`dsh-memory` 是生命周期引擎。检索只是其中一步，不是产品本身。
+
+## 普通 Memory vs dsh-memory
+
+| 普通 Agent Memory | dsh-memory |
 | --- | --- |
-| store → retrieve | observe → qualify → scope → remember → conflict → revise → decay → forget → explain |
-| Vector similarity as truth | Composite, testable score |
-| Silent overwrite | Ledger + supersede / dispute |
-| Remember everything | Eligibility + sensitivity |
-| Forget = hope the index drops it | Tombstone + payload purge + recall ban |
+| 存储 → 检索 | 观察 → 筛选 → 定范围 → 记住 → 冲突 → 修订 → 衰减 → 遗忘 → 解释 |
+| 把向量相似度当真相 | 可测试、可解释的综合打分 |
+| 静默覆盖旧记忆 | 账本 + 取代 / 争议 |
+| 什么都记 | 资格审查 + 敏感信息过滤 |
+| 遗忘 = 指望索引自己掉下去 | 墓碑 + 删除正文 + 禁止召回 |
 
-## What makes it different
+## 它强在哪
 
-- **Selective** — transient chatter never becomes long-term memory.
-- **Scoped** — global preference and project fact can both be true.
-- **Conflict-aware** — contradictions are classified, not overwritten.
-- **Temporal** — “used to” and “now” can coexist; only current facts are recalled by default.
-- **Explainable** — every recall has a score breakdown.
-- **Forgettable** — explicit forget stops search, injection, and index hits immediately.
+- **有选择** — 瞬时闲聊不会变成长期记忆。
+- **有范围** — 全局偏好和项目事实可以同时成立。
+- **感知冲突** — 矛盾会被分类，而不是被覆盖。
+- **有时间** — 「曾经」和「现在」可以共存；默认只召回当前事实。
+- **可解释** — 每次召回都有分数拆解。
+- **可遗忘** — 明确要求忘记后，搜索、注入、索引会立刻停用这条记忆。
 
-## Architecture
-
-```text
-Observation
-    → Eligibility / Sensitivity
-    → Classify + Scope
-    → Dedup / Conflict policy
-    → Ledger event
-    → Projected MemoryRecord
-    → FTS index
-    → Bounded recall
-```
-
-The domain core has no DeepSeek Harness imports. The Cordis adapter is a thin boundary: tools, `/memory`, a system-prompt policy section, and `agent/pre-step` recall.
-
-See [docs/harness-integration.md](docs/harness-integration.md) for the official APIs this was built against (`0.1.0-rc.5`, commit `47f943859bef60e4160492346772ded9b24f765a`).
-
-## Memory lifecycle
+## 架构
 
 ```text
-OBSERVATION
-     ↓
-CANDIDATE
-     ↓
-CLASSIFY → SENSITIVITY → SCOPE
-     ↓
-DEDUPLICATE → CONFLICT CHECK → POLICY
-     ↓
-STORE / MERGE / REJECT / DISPUTE
-     ↓
-ACTIVE MEMORY
-     ↓
-RECALL → CONFIRM / WEAKEN / UPDATE
-     ↓
-DECAY → SUPERSEDE / EXPIRE / FORGET
+观察
+    → 资格 / 敏感性
+    → 分类 + 范围
+    → 去重 / 冲突策略
+    → 账本事件
+    → 投影后的 MemoryRecord
+    → 全文索引
+    → 有上限的召回
 ```
 
-State is folded from an append-only **Memory Ledger**. Old states do not vanish. Forget is the exception: it writes `memory/forgotten`, then deletes payload, FTS, and embeddings so the fact cannot be recalled.
+领域核心不引用 DeepSeek Harness。Cordis 适配层很薄：工具、`/memory`、系统提示中的政策段，以及 `agent/pre-step` 自动召回。
 
-## Scopes
+对接的官方 API 见 [docs/harness-integration.md](docs/harness-integration.md)（对照 `0.1.0-rc.5`，commit `47f943859bef60e4160492346772ded9b24f765a`）。
+
+## 记忆生命周期
 
 ```text
-task > project > workspace > global
+观察
+     ↓
+候选
+     ↓
+分类 → 敏感性 → 范围
+     ↓
+去重 → 冲突检查 → 策略
+     ↓
+存储 / 合并 / 拒绝 / 争议
+     ↓
+生效中的记忆
+     ↓
+召回 → 确认 / 削弱 / 更新
+     ↓
+衰减 → 取代 / 过期 / 遗忘
 ```
 
-These do **not** overwrite each other.
+当前状态由只追加的 **Memory Ledger** fold 得出。旧状态不会偷偷消失。遗忘是例外：先写 `memory/forgotten`，再删除正文、全文索引和向量，这条事实就不能再被召回。
+
+## 范围
 
 ```text
-Global:   user generally prefers pnpm
-Project:  Alpha uses npm
+任务 > 项目 > 工作区 > 全局
 ```
 
-In Alpha, project memory wins. In any other project, the global preference remains. A project fact is never promoted to “the user always wants this.”
+它们**不会互相覆盖**。
 
-## Conflict resolution
+```text
+全局：用户一般用 pnpm
+项目：Alpha 用 npm
+```
 
-Conflicts are typed:
+在 Alpha 里，项目记忆优先。换到别的项目，全局偏好仍然有效。项目事实不会被升格成「用户永远都要这样」。
 
-| Type | Example | Default policy |
+## 冲突裁定
+
+冲突有类型：
+
+| 类型 | 例子 | 默认策略 |
 | --- | --- | --- |
-| `duplicate` | same fact twice | merge / confirm |
-| `refinement` | coffee → Ethiopian light roast | update, not contradict |
-| `scope_difference` | global pnpm vs project npm | keep both |
-| `temporal_update` | VS Code → Cursor | supersede old |
-| `direct_contradiction` | Postgres vs MySQL, same scope | compare authority |
-| `uncertain_conflict` | equal evidence | **DISPUTED** — keep both |
+| `duplicate` | 同一事实记了两次 | 合并 / 确认 |
+| `refinement` | 喜欢咖啡 → 喜欢埃塞浅烘 | 更新，不当成矛盾 |
+| `scope_difference` | 全局 pnpm vs 项目 npm | 两条都留 |
+| `temporal_update` | VS Code → Cursor | 旧的标成已被取代 |
+| `direct_contradiction` | 同项目 Postgres vs MySQL | 比较来源权威 |
+| `uncertain_conflict` | 证据相当 | **争议中** — 两条都留 |
 
-Priority is deterministic:
-
-```text
-explicit user correction
-  > explicit user statement
-  > verified structured source
-  > repeated observations
-  > single inference
-```
-
-The engine will not invent consistency.
-
-## Decay, expiration, forgetting
-
-- **Decay** lowers retrieval weight. It does not delete.
-- **Expiration** (`validUntil`) removes a fact from ordinary recall.
-- **Garbage collection** only runs on unpinned, non-explicit, expired/rejected, low-importance, long-unused records.
-- **Pin** disables automatic GC and slows decay. Explicit forget still wins.
-- **Explicit forget** immediately stops recall, search, and injection, and deletes the stored payload.
+优先级是确定性的：
 
 ```text
-Removing dsh-memory's stored memory does not necessarily
-erase the original source conversation from Harness session history.
+用户明确更正
+  > 用户明确陈述
+  > 已验证的结构化来源
+  > 多次一致观察
+  > 单次推断
 ```
 
-## Retrieval
+引擎不会伪造一致性。
 
-Not vector-only. Final score is:
+## 衰减、过期、遗忘
+
+- **衰减**只降低检索权重，不删除。
+- **过期**（`validUntil`）让事实退出普通召回。
+- **垃圾回收**只清理：未钉住、非用户明确记忆、已过期/已拒绝、重要性低、长期未用的记录。
+- **钉住**会关闭自动回收并减慢衰减。用户明确要求忘记时仍然生效。
+- **明确遗忘**立刻停止召回、搜索和注入，并删除已存正文。
 
 ```text
-relevance
-  × scopeWeight
-  × confidenceWeight
-  × freshnessWeight
-  × importanceWeight
-  × statusWeight
-  × explicitBoost
-  × pinnedBoost
-  × confirmationWeight
-  × accessWeight
+删除 dsh-memory 里的记忆，并不等于
+擦掉 DeepSeek Harness 会话历史里的原始对话。
 ```
 
-Access count is a *utility* signal. It is not evidence.
+## 检索
 
-Injection is bounded by `maxMemories` (default 8) and `maxTokens` (default 800).
+不是只做向量相似。最终分数是：
 
-Semantic embeddings are an optional `EmbeddingProvider`. v0.1 retrieval is lexical + metadata and does not require an API key.
+```text
+相关度
+  × 范围权重
+  × 置信度权重
+  × 新鲜度权重
+  × 重要性权重
+  × 状态权重
+  × 显式记忆加成
+  × 钉住加成
+  × 确认次数权重
+  × 访问次数权重
+```
 
-## Explainable recall
+访问次数只代表「好用」，不代表「更真」。
+
+注入有上限：`maxMemories` 默认 8，`maxTokens` 默认 800。
+
+语义向量是可选的 `EmbeddingProvider`。v0.1 默认用词法 + 元数据检索，不需要 API Key。
+
+## 可解释召回
 
 ```text
 M-031
-User prefers pnpm.
+用户偏好 pnpm。
 
-Recalled because:
-scope: global:user
-confidence: 0.94
-importance: 0.90
-conflict status: NONE
-lexical: 0.82
-Final recall score: 0.91
+召回原因：
+范围: global:user
+置信度: 0.94
+重要性: 0.90
+冲突状态: 无
+词法匹配: 0.82
+最终召回分: 0.91
 ```
 
-`memory_explain` / `/memory inspect` also answers **why not**: forgotten, expired, superseded, scope mismatch, low relevance, or below the context-budget cutoff.
+`memory_explain` / `/memory inspect` 也会回答 **为什么没召回**：已遗忘、已过期、已被取代、范围不匹配、相关度低，或没挤进上下文预算。
 
-## Security
+## 安全
 
-Memories are **DATA**. They are never mounted as a new system prompt.
+记忆默认是 **DATA**，不会被挂成新的系统指令。
 
-Secrets (API keys, tokens, private keys, passwords, connection strings, cards) are rejected even on explicit remember.
+密钥类内容（API key、token、私钥、密码、连接串、银行卡）即使你说「记住」，也会被拒绝。
 
-Prompt-injection-shaped text may be stored if the user insists, but it is escaped and labeled inert.
+长得像提示注入的文本，用户坚持时可以存，但会被转义并标成不可执行。
 
-Local-first: the default store is a file on disk. Nothing is sent to a remote embedding or LLM provider unless you add one later.
+本地优先：默认存本机文件。除非你以后自己接，否则不会把记忆发到远程 embedding 或 LLM。
 
-## Installation
+## 安装
 
-This package is **not on npm yet**. Install from GitHub or a local clone.
+包还没发到 npm。现在请从 GitHub 或本地目录安装。
 
-You need:
+需要：
 
-- Node `>=22.19` (`node -v`)
-- A working DeepSeek Harness CLI (`dsh --help`)
-- Replace `default` below with the profile you actually boot (see `~/.dsh/profiles/`)
+- Node `>=22.19`（`node -v` 检查）
+- 已能运行 DeepSeek Harness CLI：`dsh --help`
+- 把下面命令里的 `default` 换成你正在用的 profile 名（目录在 `~/.dsh/profiles/`）
 
-### 1. Install into DeepSeek Harness (main path)
+### 1. 装进 DeepSeek Harness（主路径）
 
-**Option A — from GitHub**
+**方式 A — 直接从 GitHub 装**
 
 ```sh
 dsh plugin --profile default add github:245678000000/dsh-memory
 ```
 
-pnpm 10+ may refuse to run this package's `prepare` script (it compiles TypeScript). Copy the package key that `dsh` printed into that profile's `pnpm-workspace.yaml`:
+pnpm 10+ 第一次可能会拒绝跑这个包的 `prepare`（它要编译 TypeScript）。按 `dsh` 打印的包名，把下面写进该 profile 的 `pnpm-workspace.yaml`：
 
 ```yaml
 allowBuilds:
   dsh-memory: true
 ```
 
-Then run `add` again.
+然后把 `add` 再跑一遍。
 
-**Option B — clone, build, add the directory**
+**方式 B — 先克隆再装本地目录**
 
 ```sh
 git clone https://github.com/245678000000/dsh-memory.git
@@ -245,38 +245,40 @@ npm install
 dsh plugin --profile default add "$PWD"
 ```
 
-`npm install` runs `prepare` and writes `dist/`. Do not `dsh plugin add` a source tree that has not been built.
+`npm install` 会执行 `prepare`，生成 `dist/`。不要只拷源码、不编译就去 `dsh plugin add`。
 
-**Restart Harness after install:**
+**装完必须重启 Harness**，例如：
 
 ```sh
-dsh --profile default --dump-config    # should contain "# == dsh-memory"
-dsh web --profile default              # or however you normally start
+dsh --profile default --dump-config    # 输出里应出现 # == dsh-memory
+dsh web --profile default              # 或你平时启动的方式
 ```
 
-You are installed when:
+怎么确认装上了：
 
-1. `--dump-config` shows a `dsh-memory` layer
-2. A new session lists `memory_remember`, `memory_search`, `memory_forget`, …
-3. The input box accepts `/memory`
+1. `--dump-config` 里有 `dsh-memory` 这一层
+2. 新会话里模型能看到 `memory_remember`、`memory_search`、`memory_forget` 等工具
+3. 输入框可以打 `/memory`
 
-Default database file:
+记忆文件默认在：
 
 ```text
 ~/.dsh/dsh-memory/memory.sqlite
 ```
 
-That is `$DSH_HOME/dsh-memory/memory.sqlite`. Override with `DSH_MEMORY_PATH`.
+也就是 `$DSH_HOME/dsh-memory/memory.sqlite`。改位置用环境变量 `DSH_MEMORY_PATH`。
 
-Uninstall:
+卸载：
 
 ```sh
 dsh plugin --profile default remove dsh-memory
 ```
 
-This removes the plugin only. It does not delete the sqlite file.
+这只移除插件，不会自动删掉上面的 sqlite 文件。
 
-### 2. CLI only (no Harness)
+### 2. 只用命令行（不启动 Harness）
+
+适合先看记忆怎么记、怎么搜、怎么忘：
 
 ```sh
 git clone https://github.com/245678000000/dsh-memory.git
@@ -284,14 +286,14 @@ cd dsh-memory
 npm install
 
 npx dsh-memory help
-npx dsh-memory remember "I generally use pnpm."
-npx dsh-memory search "package manager"
+npx dsh-memory remember "我一般用 pnpm。"
+npx dsh-memory search "包管理器"
 npx dsh-memory list
 npx dsh-memory demo
 npx dsh-memory demo conflict
 ```
 
-The CLI and the plugin share `~/.dsh/dsh-memory/memory.sqlite` unless `DSH_MEMORY_PATH` is set. From the repo you can also run:
+CLI 和插件默认共用 `~/.dsh/dsh-memory/memory.sqlite`（可用 `DSH_MEMORY_PATH` 改）。在仓库里也可以：
 
 ```sh
 npm run demo
@@ -299,7 +301,7 @@ npm run demo:conflict
 npm test
 ```
 
-### 3. As a TypeScript library
+### 3. 当作 TypeScript 库
 
 ```sh
 npm install github:245678000000/dsh-memory
@@ -310,15 +312,15 @@ import { MemoryService, activeScopeFromPaths } from "dsh-memory/core";
 
 const service = new MemoryService();
 const scope = activeScopeFromPaths({ cwd: process.cwd() });
-service.remember({ content: "I generally use pnpm.", explicit: true }, scope);
-const recalled = service.recall("Which package manager?", scope);
+service.remember({ content: "我一般用 pnpm。", explicit: true }, scope);
+const recalled = service.recall("该用哪个包管理器？", scope);
 console.log(recalled.promptBlock);
 service.close();
 ```
 
-### Optional config
+### 配置（可选）
 
-To change defaults, edit `~/.dsh/profiles/<name>/cordis.patch.yml`. Patches replace a row's whole `config` by `id` (Harness does not deep-merge):
+改默认行为时，编辑该 profile 的 `~/.dsh/profiles/<name>/cordis.patch.yml`，按 **id** 整行覆盖（Harness 不会深合并 config）：
 
 ```yaml
 - id: dsh-memory
@@ -326,69 +328,69 @@ To change defaults, edit `~/.dsh/profiles/<name>/cordis.patch.yml`. Patches repl
   inject: [tools]
   config:
     databasePath: /path/to/memory.sqlite
-    automaticRecall: true      # inject relevant memories on turn step 1
-    automaticObserve: true     # conservative auto-remember from user text
-    recallEveryStep: false     # set true to recall on every tool step
-    maxMemories: 8             # max memories injected per turn
-    maxTokens: 800             # token budget for injected text
+    automaticRecall: true      # 每轮第一步自动注入相关记忆
+    automaticObserve: true     # 观察用户消息，保守地自动记
+    recallEveryStep: false     # true 则每个 tool step 都再召回一次
+    maxMemories: 8             # 一次最多注入几条
+    maxTokens: 800             # 注入文本的 token 上限
 ```
 
-Restart the profile after editing.
+改完重启 profile。
 
-## Usage
+## 使用
 
-After install and restart you have three surfaces: talk to the agent, slash commands, or the CLI. Daily use is the first one.
+装好并重启之后，有三条路：对助手说话、斜杠命令、CLI。日常用第一条就够。
 
-### Talk to the agent
+### 对助手说话
 
-Start a new session:
+新开一个会话，按顺序试：
 
 ```text
-Remember: I generally use pnpm.
+记住：我一般用 pnpm。
 ```
 
-The model should call `memory_remember`. Open a **new** session (do not copy the first transcript):
+助手应调用 `memory_remember`。再新开一个会话（不要复制上一段聊天）：
 
 ```text
-Which package manager should I use? Check memory.
+我该用哪个包管理器？先查一下记忆。
 ```
 
-It should recall pnpm. Then, inside a **specific project directory**:
+应召回 pnpm。然后在**某个具体项目目录**里说：
 
 ```text
-For this project we use npm.
-What package manager should I use here?
+这个项目我们用 npm。
+这里该用哪个包管理器？
 ```
 
-Project npm wins. The global pnpm preference stays as background only.
+应优先项目里的 npm，全局 pnpm 只作背景。
 
-To change your mind:
+改主意：
 
 ```text
-I switched from VS Code to Cursor.
+我从 VS Code 换成 Cursor 了。
 ```
 
-VS Code becomes `superseded` (not deleted). Then:
+旧的 VS Code 会变成「已被取代」，不会被删掉。再忘：
 
 ```text
-Forget that I use Cursor.
+忘掉我用 Cursor。
 ```
 
-Later editor questions must not treat Cursor as current. Secrets are rejected even if you ask to remember them:
+之后再问编辑器，不应再把 Cursor 当当前事实。密钥类内容即使用户要求记住，也会被拒绝：
 
 ```text
-Remember that my API key is sk-...
+记住：我的 API key 是 sk-……
 ```
 
-Automatic observation is conservative. “It is 3pm” will not become long-term memory. If it matters, start with `Remember:`.
+自动观察很保守。随口一句「现在下午三点」不会进长期记忆。你在意的事实，请以「记住：」开头。
 
-### Slash commands (no model)
+### 斜杠命令（不经过模型）
 
-Type these in the input box:
+在输入框直接敲：
 
 ```text
 /memory
-/memory search package manager
+/memory search 包管理器
 /memory conflicts
 /memory inspect M-XXXXXX
 /memory forget M-XXXXXX
@@ -396,70 +398,70 @@ Type these in the input box:
 /memory unpin M-XXXXXX
 ```
 
-`/memory` lists usable memories. `inspect` explains why a memory would or would not be recalled.
+`/memory` 列出当前还能用的记忆。`inspect` 会说明为什么会（或不会）被召回。
 
-### Model tools
+### 模型工具
 
-The agent can call these. You can also name them: “use `memory_search` for package manager”.
+助手可调用这些工具。你也可以在对话里点名，例如「用 memory_search 查一下包管理器」。
 
-| Tool | When to use it | Common arguments |
+| 工具 | 你要它做什么 | 常用参数 |
 | --- | --- | --- |
-| `memory_remember` | Store a fact | `content` (required), `scope` (`global` / `project` / …), `kind`, `pin`, `validUntil` |
-| `memory_search` | Search by question | `query`, `limit` |
-| `memory_get` | Fetch one id | `id` |
-| `memory_forget` | Forget | `id` or `query` or `subject` or `scope`; wiping everything also needs `all=true` and `confirmAll=true` |
-| `memory_pin` / `memory_unpin` | Pin / unpin | `id` |
-| `memory_conflicts` | List open conflicts | none |
-| `memory_resolve_conflict` | Resolve a conflict | `conflictId`, `resolution`: `keep_a` / `keep_b` / `both_valid_by_scope` / `mark_newer` / `merge` / `remain_disputed` |
-| `memory_explain` | Explain recall | `id`, optional `query` |
-| `memory_list` | Filter the catalog | `status`, `scope`, `kind`, `includeForgotten` |
+| `memory_remember` | 存一条 | `content`（必填），`scope`（global / project / …），`kind`，`pin`，`validUntil` |
+| `memory_search` | 按问题搜索 | `query`，`limit` |
+| `memory_get` | 按 id 看一条 | `id` |
+| `memory_forget` | 忘掉 | `id` 或 `query` 或 `subject` 或 `scope`；清空全部还要 `all=true` 且 `confirmAll=true` |
+| `memory_pin` / `memory_unpin` | 钉住 / 取消钉住 | `id` |
+| `memory_conflicts` | 列出未决冲突 | 无 |
+| `memory_resolve_conflict` | 裁定冲突 | `conflictId`，`resolution`：`keep_a` / `keep_b` / `both_valid_by_scope` / `mark_newer` / `merge` / `remain_disputed` |
+| `memory_explain` | 解释召回 | `id`，可选 `query` |
+| `memory_list` | 筛选列表 | `status`，`scope`，`kind`，`includeForgotten` |
 
-Each recall injects at most `maxMemories` items and stays under `maxTokens`. Expired, forgotten, and (by default) superseded memories are not injected.
+一次召回最多注入 `maxMemories` 条，且受 `maxTokens` 限制。过期、已遗忘、默认情况下已被取代的记忆不会进普通召回。
 
-### CLI
+### 命令行
 
-From the repo root (or after a global install):
+在仓库根目录，或 `npm install -g` 之后：
 
 ```text
-npx dsh-memory remember I generally use pnpm.
-npx dsh-memory search "package manager"
+npx dsh-memory remember 我一般用 pnpm。
+npx dsh-memory search 包管理器
 npx dsh-memory list
 npx dsh-memory get M-XXXXXX
 npx dsh-memory forget M-XXXXXX
 npx dsh-memory pin M-XXXXXX
 npx dsh-memory conflicts
-npx dsh-memory explain M-XXXXXX "package manager"
+npx dsh-memory explain M-XXXXXX 包管理器
 npx dsh-memory export
 npx dsh-memory demo
 npx dsh-memory demo conflict
 npx dsh-memory bench
 ```
 
-### What the repo demos do
+### 仓库里的演示在做什么
 
 ```sh
 npx tsx examples/killer-demo.ts
 npx tsx examples/conflict-demo.ts
 ```
 
-1. Store a global `pnpm` preference
-2. Store project Alpha `npm`; asking “what should I use here?” in Alpha returns **npm**
-3. VS Code is superseded by Cursor
-4. After forgetting Cursor, recall does not return it
+1. 存全局 `pnpm`
+2. 给项目 Alpha 记 `npm`；在 Alpha 问「这里用哪个」→ **npm**
+3. VS Code 被 Cursor 取代
+4. 忘掉 Cursor 后，召回不再给出它
 
-Second demo: PostgreSQL vs MySQL in the same project stays **DISPUTED**. No automatic overwrite.
+第二个演示：同一项目里 PostgreSQL 和 MySQL 保持 **争议中**，不会自动覆盖。
 
-### Keep in mind
+### 使用时请记住
 
-- The current user message always outranks stored memory.
-- Memories are data, not new system instructions.
-- `forget` only removes dsh-memory's store. It does **not** erase Harness session history.
+- 当前用户这句话的优先级永远高于旧记忆。
+- 记忆是数据，不是新的系统指令。
+- `forget` 只删 dsh-memory 自己的库，**不会**擦掉 Harness 会话记录。
 
-## Harness integration
+## Harness 集成
 
-Automatic recall runs on the official `agent/pre-step` waterfall — the same request-preparation hook as `dsh-time-context`. Details: [docs/harness-integration.md](docs/harness-integration.md).
+自动召回走官方 `agent/pre-step` waterfall，和 `dsh-time-context` 是同一类请求准备钩子。细节见 [docs/harness-integration.md](docs/harness-integration.md)。
 
-## Testing
+## 测试
 
 ```sh
 npm run lint
@@ -468,35 +470,35 @@ npm run test
 npm run build
 ```
 
-The suite includes the v0.1 acceptance scenarios: cross-session recall, supersede, scope precedence, dispute, forget compliance, expiration, pin vs GC, secret rejection, refinement, injection labeling, context budget, historical query, explainability, and ungrounded-guess rejection.
+套件覆盖 v0.1 验收场景：跨会话召回、取代、范围优先级、争议、遗忘合规、过期、钉住 vs 回收、密钥拒绝、细化而非矛盾、注入标注、上下文预算、历史查询、可解释性，以及无根据猜测不得入库。
 
-## Benchmark
+## 基准
 
 ```sh
 npm run bench
 ```
 
-Reports real numbers only: precision, coverage, conflict accuracy, scope accuracy, stale-memory error rate, forget compliance, and injected tokens. Do not treat a hand-written table as a result — run the runner.
+只报告真实跑出来的数字：精确率、覆盖率、冲突准确率、范围准确率、过期记忆误用率、遗忘合规、注入 token。不要把手工表格当成结果，请自己跑 runner。
 
-## Roadmap
+## 路线图
 
-| Version | Scope |
+| 版本 | 范围 |
 | --- | --- |
-| **v0.1** | Local ledger, scope, conflict, forget, decay, bounded explainable retrieval, Harness plugin |
-| v0.2 | Optional embeddings, Memory Inspector UI, richer consolidation |
-| v0.3 | MCP / Engram / Memorix backend adapters |
-| v0.4 | Shared/team memories and permissions |
-| v0.5 | Cross-agent federation |
+| **v0.1** | 本地账本、范围、冲突、遗忘、衰减、有上限的可解释检索、Harness 插件 |
+| v0.2 | 可选向量、Memory Inspector UI、更强的合并 |
+| v0.3 | MCP / Engram / Memorix 后端适配 |
+| v0.4 | 团队共享记忆和权限 |
+| v0.5 | 跨 Agent 联邦 |
 
-## Limitations
+## 限制
 
-- v0.1 retrieval is lexical + structured metadata. Semantic search is an interface, not a default provider.
-- Classification and conflict typing are deterministic heuristics. Ambiguous natural language can be under-extracted.
-- Automatic observe is conservative. If you care about a fact, say “Remember …”.
-- Forget cannot erase Harness session logs.
-- No Inspector UI yet. Use tools, `/memory`, or the CLI.
-- No cloud sync, no multi-tenant auth, no team graph.
+- v0.1 检索是词法 + 结构化元数据。语义搜索只留了接口，没有默认供应商。
+- 分类和冲突分型是确定性启发式。绕弯的自然语言可能抽不准。
+- 自动观察很保守。在意的事实请说「记住……」。
+- 遗忘清不掉 Harness 会话日志。
+- 还没有 Inspector UI。请用工具、`/memory` 或 CLI。
+- 没有云同步、没有多租户鉴权、没有团队图谱。
 
-## License
+## 许可证
 
 MIT
