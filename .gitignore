@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+*.log
+.dsh-memory/
+tmp/
+.DS_Store
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm

@@ -1,0 +1,23 @@
+# dsh-memory bundle layer.
+# Install with: dsh plugin add <this-package>
+# Then restart / boot the profile.
+- insert:
+    - id: dsh-memory
+      name: dsh-memory
+      inject: [tools]
+      config:
+        databasePath: !!js >-
+          process.env.DSH_MEMORY_PATH?.trim()
+          || process.getBuiltinModule('node:path').join(
+               process.env.DSH_HOME?.trim()
+               || process.getBuiltinModule('node:path').join(
+                    process.getBuiltinModule('node:os').homedir(),
+                    '.dsh'
+                  ),
+               'dsh-memory',
+               'memory.sqlite'
+             )
+        automaticRecall: true
+        automaticObserve: true
+        maxMemories: 8
+        maxTokens: 800

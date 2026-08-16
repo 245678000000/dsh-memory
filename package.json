@@ -1,0 +1,90 @@
+{
+  "name": "dsh-memory",
+  "version": "0.1.0",
+  "description": "Intelligent long-term memory for DeepSeek Harness. Remember what matters. Resolve what conflicts. Forget what no longer should remain.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "default": "./dist/core.js"
+    }
+  },
+  "bin": {
+    "dsh-memory": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "prepare": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "tsc -p tsconfig.json --noEmit && node --eval \"const fs=require('node:fs');const path=require('node:path');function walk(d,a=[]){for(const e of fs.readdirSync(d,{withFileTypes:true})){const p=path.join(d,e.name);if(e.isDirectory())walk(p,a);else if(p.endsWith('.ts'))a.push(p);}return a;}const files=walk('src').concat(walk('tests'),walk('examples'),walk('benchmarks'));let bad=0;for(const f of files){const t=fs.readFileSync(f,'utf8');if(/\\bany\\b/.test(t.replace(/\\/\\/.*$/gm,'').replace(/\\/\\*[\\s\\S]*?\\*\\//g,''))){const lines=t.split(/\\n/);lines.forEach((l,i)=>{if(/:\\s*any\\b|<any>|as any\\b/.test(l)&&!l.includes('eslint')){console.error(f+':'+(i+1)+': unexpected any');bad++;}});} } if(bad) process.exit(1);\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "bench": "tsx benchmarks/runner.ts",
+    "demo": "tsx examples/killer-demo.ts",
+    "demo:conflict": "tsx examples/conflict-demo.ts",
+    "cli": "tsx src/cli.ts"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "keywords": [
+    "deepseek",
+    "harness",
+    "dsh",
+    "memory",
+    "agent",
+    "cordis",
+    "plugin"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-agent": "*",
+    "@deepseek-ai/dsh-llm": "*",
+    "@deepseek-ai/dsh-tools": "*",
+    "@deepseek-ai/schemastery": "*"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-agent": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-llm": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    },
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "typescript": "^5.9.2"
+  }
+}
